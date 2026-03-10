@@ -18,8 +18,7 @@ async function getToken(): Promise<string> {
 
   const text = await res.text()
   if (!res.ok) throw new Error(`Token error (${res.status}): ${text.slice(0, 500)}`)
-  const data = JSON.parse(text)
-  return data.access_token
+  return JSON.parse(text).access_token
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -31,27 +30,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const token = await getToken()
+    const headers = { 'Authorization': `Bearer ${token}` }
 
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
+    const [addressRes, contractRes, consumptionRes] = await Promise.allSettled([
+      fetch(`${ENEDIS_BASE}/customers_upa/v5/usage_points/addresses?usage_point_id=${pdl}`, { headers }),
+      fetch(`${ENEDIS_BASE}/customers_upc/v5/usage_points/contracts?usage_point_id=${pdl}`, { headers }),
+      fetch(`${ENEDIS_BASE}/metering_data_dc/v5/daily_consumption?usage_point_id=${pdl}&start=${start}&end=${end}`, { headers }),
+    ])
+
+    let address = null
+    let contract = null
+    let consumption = null
+
+    if (addressRes.status === 'fulfilled' && addressRes.value.ok) {
+      const data = await addressRes.value.json()
+      const up = data?.customer?.usage_points?.[0]?.usage_point
+      if (up) address = { ...up, ...up.usage_point_addresses }
     }
 
-    const debug: Record<string, unknown> = {}
+    if (contractRes.status === 'fulfilled' && contractRes.value.ok) {
+      const data = await contractRes.value.json()
+      const c = data?.customer?.usage_points?.[0]?.contracts
+      if (c) contract = c
+    }
 
-    const addressRes = await fetch(`${ENEDIS_BASE}/v3/customers/usage_points/addresses?usage_point_id=${pdl}`, { headers })
-    const addressBody = await addressRes.json()
-    debug.address = { status: addressRes.status, body: addressBody }
+    if (consumptionRes.status === 'fulfilled' && consumptionRes.value.ok) {
+      const data = await consumptionRes.value.json()
+      const meter = data?.meter_reading
+      if (meter) {
+        consumption = {
+          unit: meter.reading_type?.unit,
+          values: meter.interval_reading?.map((r: { date: string; value: string }) => ({
+            date: r.date,
+            value: parseFloat(r.value),
+          })) || [],
+        }
+      }
+    }
 
-    const contractRes = await fetch(`${ENEDIS_BASE}/v3/customers/usage_points/contracts?usage_point_id=${pdl}`, { headers })
-    const contractBody = await contractRes.json()
-    debug.contract = { status: contractRes.status, body: contractBody }
+    if (!address && !contract && !consumption) {
+      return res.status(404).json({ error: 'Aucune donnée trouvée pour ce PDL' })
+    }
 
-    const consumptionRes = await fetch(`${ENEDIS_BASE}/v3/customers/daily_consumption?usage_point_id=${pdl}&start=${start}&end=${end}`, { headers })
-    const consumptionBody = await consumptionRes.json()
-    debug.consumption = { status: consumptionRes.status, body: consumptionBody }
-
-    return res.status(200).json({ debug })
+    return res.status(200).json({ address, contract, consumption })
   } catch (e: unknown) {
     return res.status(500).json({ error: e instanceof Error ? e.message : 'Erreur serveur' })
   }

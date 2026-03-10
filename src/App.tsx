@@ -1,11 +1,36 @@
 import { useState } from 'react'
 import './index.css'
 
+interface PDLAddress {
+  usage_point_id: string
+  usage_point_status: string
+  meter_type: string
+  street: string
+  locality?: string
+  postal_code: string
+  city: string
+}
+
+interface ContractInfo {
+  segment: string
+  subscribed_power: string
+  last_activation_date: string
+  distribution_tariff: string
+  offpeak_hours?: string
+}
+
+interface ConsumptionData {
+  unit: string
+  values: { date: string; value: number }[]
+}
+
 export default function App() {
   const [pdl, setPdl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState<string>('')
+  const [address, setAddress] = useState<PDLAddress | null>(null)
+  const [contract, setContract] = useState<ContractInfo | null>(null)
+  const [consumption, setConsumption] = useState<ConsumptionData | null>(null)
 
   const today = new Date()
   const startDate = new Date(today)
@@ -19,19 +44,25 @@ export default function App() {
     }
     setError('')
     setLoading(true)
-    setResult('')
+    setAddress(null)
+    setContract(null)
+    setConsumption(null)
 
     try {
       const res = await fetch(`/api/enedis?pdl=${pdl.trim()}&start=${fmt(startDate)}&end=${fmt(today)}`)
       const data = await res.json()
-      setResult(JSON.stringify(data, null, 2))
-      if (!res.ok) setError(data.error || 'Erreur inconnue')
+      if (!res.ok) throw new Error(data.error || 'Erreur inconnue')
+      setAddress(data.address || null)
+      setContract(data.contract || null)
+      setConsumption(data.consumption || null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur réseau')
     } finally {
       setLoading(false)
     }
   }
+
+  const total = consumption?.values?.reduce((s, v) => s + (v.value || 0), 0) || 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -58,7 +89,7 @@ export default function App() {
               value={pdl}
               onChange={e => setPdl(e.target.value.replace(/\D/g, '').slice(0, 14))}
               onKeyDown={e => e.key === 'Enter' && search()}
-              placeholder="14 chiffres"
+              placeholder="14 chiffres (ex: 22516914714270)"
               className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             <button
@@ -72,10 +103,61 @@ export default function App() {
           {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
         </div>
 
-        {result && (
+        {address && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl shadow p-6">
+              <h3 className="font-semibold text-gray-700 mb-3">Adresse</h3>
+              <p className="text-gray-800">{address.street}</p>
+              {address.locality && <p className="text-gray-600 text-sm">{address.locality}</p>}
+              <p className="text-gray-800">{address.postal_code} {address.city}</p>
+              <div className="mt-3 space-y-1 text-sm text-gray-500">
+                <p>PDL : <span className="font-mono font-semibold text-gray-700">{address.usage_point_id}</span></p>
+                <p>Statut : <span className="font-medium text-gray-700 capitalize">{address.usage_point_status}</span></p>
+                <p>Compteur : <span className="font-medium text-gray-700">{address.meter_type}</span></p>
+              </div>
+            </div>
+
+            {contract && (
+              <div className="bg-white rounded-xl shadow p-6">
+                <h3 className="font-semibold text-gray-700 mb-3">Contrat</h3>
+                <div className="space-y-1 text-sm">
+                  <p className="text-gray-600">Segment : <span className="font-medium text-gray-800">{contract.segment}</span></p>
+                  <p className="text-gray-600">Puissance souscrite : <span className="font-medium text-gray-800">{contract.subscribed_power}</span></p>
+                  <p className="text-gray-600">Tarif : <span className="font-medium text-gray-800">{contract.distribution_tariff}</span></p>
+                  {contract.offpeak_hours && (
+                    <p className="text-gray-600">Heures creuses : <span className="font-medium text-gray-800">{contract.offpeak_hours}</span></p>
+                  )}
+                  <p className="text-gray-600">Activation : <span className="font-medium text-gray-800">{contract.last_activation_date}</span></p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {consumption && consumption.values?.length > 0 && (
           <div className="bg-white rounded-xl shadow p-6">
-            <h3 className="font-semibold text-gray-700 mb-3">Réponse API (debug)</h3>
-            <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto max-h-96">{result}</pre>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-gray-700">Consommation — 3 derniers mois</h3>
+              <span className="text-lg font-bold text-green-700">{(total / 1000).toFixed(0)} kWh total</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-gray-500">
+                    <th className="text-left py-2 font-medium">Date</th>
+                    <th className="text-right py-2 font-medium">Wh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consumption.values.slice(-30).map((v, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="py-1.5 text-gray-700">{v.date}</td>
+                      <td className="py-1.5 text-right font-mono text-gray-800">{v.value?.toLocaleString('fr-FR')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>

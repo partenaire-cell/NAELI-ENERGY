@@ -24,8 +24,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: clientId,
-        client_secret: clientSecret,
         code,
         redirect_uri,
       }).toString(),

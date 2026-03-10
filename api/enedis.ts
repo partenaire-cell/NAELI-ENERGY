@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const ENEDIS_BASE = 'https://ext.prod-sandbox.api.enedis.fr'
+const ENEDIS_BASE = 'https://ext.prod.api.enedis.fr'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { pdl, start, end } = req.query

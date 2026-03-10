@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './index.css'
 
-const ENEDIS_AUTH_URL = 'https://ext.prod.api.enedis.fr/dataconnect/v1/oauth2/authorize'
+const ENEDIS_AUTH_URL = 'https://ext.prod-sandbox.api.enedis.fr/dataconnect/v1/oauth2/authorize'
 const CLIENT_ID = import.meta.env.VITE_ENEDIS_CLIENT_ID
 
 interface PDLAddress {

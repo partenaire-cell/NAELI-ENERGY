@@ -16,8 +16,9 @@ async function getToken(): Promise<string> {
     body: 'grant_type=client_credentials',
   })
 
-  const data = await res.json()
-  if (!res.ok) throw new Error(`Token error: ${JSON.stringify(data)}`)
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Token error (${res.status}): ${text.slice(0, 500)}`)
+  const data = JSON.parse(text)
   return data.access_token
 }
 

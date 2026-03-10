@@ -32,15 +32,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const token = await getToken()
     const headers = { 'Authorization': `Bearer ${token}` }
 
-    const [addressRes, contractRes, consumptionRes] = await Promise.allSettled([
+    const [addressRes, contractRes, consumptionRes, identityRes, contactRes, maxPowerRes] = await Promise.allSettled([
       fetch(`${ENEDIS_BASE}/customers_upa/v5/usage_points/addresses?usage_point_id=${pdl}`, { headers }),
       fetch(`${ENEDIS_BASE}/customers_upc/v5/usage_points/contracts?usage_point_id=${pdl}`, { headers }),
       fetch(`${ENEDIS_BASE}/metering_data_dc/v5/daily_consumption?usage_point_id=${pdl}&start=${start}&end=${end}`, { headers }),
+      fetch(`${ENEDIS_BASE}/customers_i/v5/identity?usage_point_id=${pdl}`, { headers }),
+      fetch(`${ENEDIS_BASE}/customers_cd/v5/contact_data?usage_point_id=${pdl}`, { headers }),
+      fetch(`${ENEDIS_BASE}/metering_data_dcmp/v5/daily_consumption_max_power?usage_point_id=${pdl}&start=${start}&end=${end}`, { headers }),
     ])
 
     let address = null
     let contract = null
     let consumption = null
+    let identity = null
+    let contact = null
+    let maxPower = null
 
     if (addressRes.status === 'fulfilled' && addressRes.value.ok) {
       const data = await addressRes.value.json()
@@ -68,11 +74,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    if (identityRes.status === 'fulfilled' && identityRes.value.ok) {
+      const data = await identityRes.value.json()
+      identity = data?.identity?.natural_person || data?.identity?.legal_person || null
+    }
+
+    if (contactRes.status === 'fulfilled' && contactRes.value.ok) {
+      const data = await contactRes.value.json()
+      contact = data?.contact_data || null
+    }
+
+    if (maxPowerRes.status === 'fulfilled' && maxPowerRes.value.ok) {
+      const data = await maxPowerRes.value.json()
+      const meter = data?.meter_reading
+      if (meter) {
+        maxPower = {
+          unit: meter.reading_type?.unit,
+          values: meter.interval_reading?.map((r: { date: string; value: string }) => ({
+            date: r.date,
+            value: parseFloat(r.value),
+          })) || [],
+        }
+      }
+    }
+
     if (!address && !contract && !consumption) {
       return res.status(404).json({ error: 'Aucune donnée trouvée pour ce PDL' })
     }
 
-    return res.status(200).json({ address, contract, consumption })
+    return res.status(200).json({ address, contract, consumption, identity, contact, maxPower })
   } catch (e: unknown) {
     return res.status(500).json({ error: e instanceof Error ? e.message : 'Erreur serveur' })
   }

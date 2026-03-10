@@ -24,13 +24,28 @@ interface ConsumptionData {
   values: { date: string; value: number }[]
 }
 
+interface Identity {
+  title?: string
+  firstname?: string
+  lastname?: string
+}
+
+interface ContactData {
+  phone?: string
+  email?: string
+}
+
 export default function App() {
+  const [consentAccepted, setConsentAccepted] = useState(false)
   const [pdl, setPdl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [address, setAddress] = useState<PDLAddress | null>(null)
   const [contract, setContract] = useState<ContractInfo | null>(null)
   const [consumption, setConsumption] = useState<ConsumptionData | null>(null)
+  const [identity, setIdentity] = useState<Identity | null>(null)
+  const [contact, setContact] = useState<ContactData | null>(null)
+  const [maxPower, setMaxPower] = useState<ConsumptionData | null>(null)
 
   const today = new Date()
   const startDate = new Date(today)
@@ -42,7 +57,7 @@ export default function App() {
   const groupByMonth = (values: { date: string; value: number }[]) => {
     const map: Record<string, number> = {}
     for (const v of values) {
-      const key = v.date.slice(0, 7) // YYYY-MM
+      const key = v.date.slice(0, 7)
       map[key] = (map[key] || 0) + v.value
     }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([key, total]) => {
@@ -58,9 +73,8 @@ export default function App() {
     }
     setError('')
     setLoading(true)
-    setAddress(null)
-    setContract(null)
-    setConsumption(null)
+    setAddress(null); setContract(null); setConsumption(null)
+    setIdentity(null); setContact(null); setMaxPower(null)
 
     try {
       const res = await fetch(`/api/enedis?pdl=${pdl.trim()}&start=${fmt(startDate)}&end=${fmt(today)}`)
@@ -69,6 +83,9 @@ export default function App() {
       setAddress(data.address || null)
       setContract(data.contract || null)
       setConsumption(data.consumption || null)
+      setIdentity(data.identity || null)
+      setContact(data.contact || null)
+      setMaxPower(data.maxPower || null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur réseau')
     } finally {
@@ -79,8 +96,10 @@ export default function App() {
   const totalAnnuel = consumption?.values?.reduce((s, v) => s + (v.value || 0), 0) || 0
   const monthlyData = consumption ? groupByMonth(consumption.values) : []
   const maxMonth = Math.max(...monthlyData.map(m => m.total), 1)
-
-  const [consentAccepted, setConsentAccepted] = useState(false)
+  const peakPower = maxPower ? Math.max(...maxPower.values.map(v => v.value)) : null
+  const avgPower = maxPower && maxPower.values.length > 0
+    ? maxPower.values.reduce((s, v) => s + v.value, 0) / maxPower.values.length
+    : null
 
   if (!consentAccepted) {
     return (
@@ -94,11 +113,8 @@ export default function App() {
             </div>
             <h1 className="text-xl font-bold text-gray-800">Naeli Energie</h1>
           </div>
-
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Déclaration de consentement</h2>
-          <p className="text-gray-600 text-sm mb-4">
-            En utilisant cet outil, vous confirmez que :
-          </p>
+          <p className="text-gray-600 text-sm mb-4">En utilisant cet outil, vous confirmez que :</p>
           <ul className="space-y-2 text-sm text-gray-600 mb-6">
             <li className="flex items-start gap-2">
               <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -113,7 +129,6 @@ export default function App() {
               <span>Les données consultées seront utilisées <strong>uniquement dans le cadre de votre mission</strong> de courtier en énergie.</span>
             </li>
           </ul>
-
           <button
             onClick={() => setConsentAccepted(true)}
             className="w-full bg-green-700 hover:bg-green-800 text-white py-3 rounded-lg font-medium transition-colors"
@@ -164,6 +179,34 @@ export default function App() {
           {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
         </div>
 
+        {(identity || contact) && (
+          <div className="bg-white rounded-xl shadow p-6">
+            <h3 className="font-semibold text-gray-700 mb-3">Titulaire</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              {identity && (
+                <div>
+                  <p className="text-gray-500 mb-1">Identité</p>
+                  <p className="font-medium text-gray-800">
+                    {[identity.title, identity.firstname, identity.lastname].filter(Boolean).join(' ')}
+                  </p>
+                </div>
+              )}
+              {contact?.phone && (
+                <div>
+                  <p className="text-gray-500 mb-1">Téléphone</p>
+                  <p className="font-medium text-gray-800">{contact.phone}</p>
+                </div>
+              )}
+              {contact?.email && (
+                <div>
+                  <p className="text-gray-500 mb-1">Email</p>
+                  <p className="font-medium text-gray-800">{contact.email}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {address && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl shadow p-6">
@@ -195,15 +238,26 @@ export default function App() {
           </div>
         )}
 
+        {peakPower !== null && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl shadow p-5 text-center">
+              <p className="text-xs text-gray-500 mb-1">Pic de puissance</p>
+              <p className="text-2xl font-bold text-orange-600">{(peakPower / 1000).toFixed(1)} kVA</p>
+            </div>
+            <div className="bg-white rounded-xl shadow p-5 text-center">
+              <p className="text-xs text-gray-500 mb-1">Puissance moy. journalière</p>
+              <p className="text-2xl font-bold text-blue-600">{((avgPower || 0) / 1000).toFixed(1)} kVA</p>
+            </div>
+            <div className="bg-white rounded-xl shadow p-5 text-center col-span-2 md:col-span-1">
+              <p className="text-xs text-gray-500 mb-1">Consommation annuelle</p>
+              <p className="text-2xl font-bold text-green-700">{(totalAnnuel / 1000).toFixed(0)} kWh</p>
+            </div>
+          </div>
+        )}
+
         {monthlyData.length > 0 && (
           <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-semibold text-gray-700">Consommation mensuelle</h3>
-              <div className="text-right">
-                <p className="text-xs text-gray-500">Total annuel</p>
-                <p className="text-2xl font-bold text-green-700">{(totalAnnuel / 1000).toFixed(0)} kWh</p>
-              </div>
-            </div>
+            <h3 className="font-semibold text-gray-700 mb-6">Consommation mensuelle</h3>
             <div className="space-y-3">
               {monthlyData.map((m, i) => (
                 <div key={i} className="flex items-center gap-3">

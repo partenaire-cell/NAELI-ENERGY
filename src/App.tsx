@@ -5,7 +5,7 @@ export default function App() {
   const [pdl, setPdl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState<unknown>(null)
+  const [result, setResult] = useState<string>('')
 
   const today = new Date()
   const startDate = new Date(today)
@@ -19,12 +19,12 @@ export default function App() {
     }
     setError('')
     setLoading(true)
-    setResult(null)
+    setResult('')
 
     try {
       const res = await fetch(`/api/enedis?pdl=${pdl.trim()}&start=${fmt(startDate)}&end=${fmt(today)}`)
       const data = await res.json()
-      setResult(data)
+      setResult(JSON.stringify(data, null, 2))
       if (!res.ok) setError(data.error || 'Erreur inconnue')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erreur réseau')
@@ -75,9 +75,7 @@ export default function App() {
         {result && (
           <div className="bg-white rounded-xl shadow p-6">
             <h3 className="font-semibold text-gray-700 mb-3">Réponse API (debug)</h3>
-            <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto max-h-96">
-              {JSON.stringify(result, null, 2)}
-            </pre>
+            <pre className="text-xs bg-gray-100 p-4 rounded overflow-auto max-h-96">{result}</pre>
           </div>
         )}
       </main>

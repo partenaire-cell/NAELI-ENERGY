@@ -80,6 +80,51 @@ export default function App() {
   const monthlyData = consumption ? groupByMonth(consumption.values) : []
   const maxMonth = Math.max(...monthlyData.map(m => m.total), 1)
 
+  const [consentAccepted, setConsentAccepted] = useState(false)
+
+  if (!consentAccepted) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-lg w-full">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-green-100 rounded-full p-2">
+              <svg className="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold text-gray-800">Naeli Energie</h1>
+          </div>
+
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">Déclaration de consentement</h2>
+          <p className="text-gray-600 text-sm mb-4">
+            En utilisant cet outil, vous confirmez que :
+          </p>
+          <ul className="space-y-2 text-sm text-gray-600 mb-6">
+            <li className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">✓</span>
+              <span>Le client titulaire du PDL vous a <strong>expressément autorisé</strong> à accéder à ses données de consommation électrique.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">✓</span>
+              <span>Vous avez recueilli ce consentement conformément au <strong>RGPD</strong> et aux conditions d'utilisation d'Enedis.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-0.5">✓</span>
+              <span>Les données consultées seront utilisées <strong>uniquement dans le cadre de votre mission</strong> de courtier en énergie.</span>
+            </li>
+          </ul>
+
+          <button
+            onClick={() => setConsentAccepted(true)}
+            className="w-full bg-green-700 hover:bg-green-800 text-white py-3 rounded-lg font-medium transition-colors"
+          >
+            J'ai le consentement du client — Continuer
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-green-700 text-white shadow">

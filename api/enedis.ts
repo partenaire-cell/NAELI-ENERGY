@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const ENEDIS_BASE = 'https://ext.prod.api.enedis.fr'
+const ENEDIS_BASE = process.env.ENEDIS_SANDBOX === 'true'
+  ? 'https://ext.prod-sandbox.api.enedis.fr'
+  : 'https://ext.prod.api.enedis.fr'
 
 async function getToken(): Promise<string> {
   const clientId = process.env.ENEDIS_CLIENT_ID!

@@ -1,47 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const ENEDIS_BASE = process.env.ENEDIS_SANDBOX === 'true'
-  ? 'https://ext.prod-sandbox.api.enedis.fr'
-  : 'https://ext.prod.api.enedis.fr'
-
-async function getToken(): Promise<string> {
-  const clientId = process.env.ENEDIS_CLIENT_ID!
-  const clientSecret = process.env.ENEDIS_CLIENT_SECRET!
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-
-  const res = await fetch(`${ENEDIS_BASE}/oauth2/v3/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${credentials}`,
-    },
-    body: 'grant_type=client_credentials',
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Erreur authentification Enedis: ${text}`)
-  }
-
-  const data = await res.json()
-  return data.access_token
-}
+const ENEDIS_BASE = 'https://ext.prod-sandbox.api.enedis.fr'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { pdl, start, end } = req.query
+  const authHeader = req.headers.authorization
 
   if (!pdl || typeof pdl !== 'string') {
     return res.status(400).json({ error: 'PDL manquant' })
   }
 
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token manquant — veuillez vous connecter' })
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  }
+
   try {
-    const token = await getToken()
-
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
-
     const [addressRes, contractRes, consumptionRes] = await Promise.allSettled([
       fetch(`${ENEDIS_BASE}/v3/customers/usage_points/addresses?usage_point_id=${pdl}`, { headers }),
       fetch(`${ENEDIS_BASE}/v3/customers/usage_points/contracts?usage_point_id=${pdl}`, { headers }),
